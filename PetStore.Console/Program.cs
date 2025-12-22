@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using PetStore.Common.Models;
+using PetStore.Infrastructure;
+using PetStore.Infrastructure.Models;
+using PetStore.Infrastructure.Repository;
 using PetStore.Common.Services;
 
 namespace PetStore.ConsoleApp
@@ -13,163 +13,205 @@ namespace PetStore.ConsoleApp
         static async Task Main()
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
-            Console.WriteLine("=== Лабораторна робота №2 ===");
-            Console.WriteLine("Багатопоковість. Асинхроність. IEnumerables. LINQ.\n");
+            Console.WriteLine("=== Лабораторна робота №3 ===");
+            Console.WriteLine("Робота із базами даних. MongoDB. Шаблон Репозиторій.\n");
 
-            // Створюємо асинхроний CRUD сервіс
-            var dogService = new CrudServiceAsync<Dog>("dogs_async.json");
-
-            // Паралельне створення 1000+ об'єктів
-            Console.WriteLine("Створення 1000 об'єктів Dog паралельно...\n");
-            var stopwatch = Stopwatch.StartNew();
+            // MongoDB connection string (localhost)
+            string connectionString = "mongodb+srv://specialforbohdan:1b2g3d4n@cluster0.n1d9gpq.mongodb.net/";
             
-            Parallel.For(0, 1000, i =>
+            try
             {
-                var dog = Dog.CreateNew();
-                dogService.CreateAsync(dog).Wait();
-            });
-            
-            stopwatch.Stop();
-            Console.WriteLine($"Створено 1000 об'єктів за {stopwatch.ElapsedMilliseconds} мс\n");
+                // Initialize context
+                var context = new PetStoreContext(connectionString);
+                Console.WriteLine("Підключення до MongoDB успішне!\n");
 
-            // Отримуємо всі об'єкти
-            var allDogs = await dogService.ReadAllAsync();
-            var dogsList = allDogs.ToList();
+                // Create repositories
+                var dogRepository = new MongoRepository<DogModel>(context.Dogs);
+                var catRepository = new MongoRepository<CatModel>(context.Cats);
+                var customerRepository = new MongoRepository<CustomerModel>(context.Customers);
 
-            // LINQ: Мінімальні, максимальні та середні значення
-            Console.WriteLine("Статистика віку собак (LINQ):");
-            Console.WriteLine($"   Мінімальний вік: {dogsList.Min(d => d.Age)} років");
-            Console.WriteLine($"   Максимальний вік: {dogsList.Max(d => d.Age)} років");
-            Console.WriteLine($"   Середній вік: {dogsList.Average(d => d.Age):F2} років");
-            Console.WriteLine($"   Загальна кількість: {dogsList.Count} собак\n");
+                // Create adapters for CRUD services
+                var dogAdapter = new RepositoryAdapter<DogModel>(dogRepository);
+                var catAdapter = new RepositoryAdapter<CatModel>(catRepository);
+                var customerAdapter = new RepositoryAdapter<CustomerModel>(customerRepository);
 
-            // Статистика по породах
-            var breedGroups = dogsList.GroupBy(d => d.Breed)
-                .Select(g => new { Breed = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(5);
-            
-            Console.WriteLine("Топ-5 порід:");
-            foreach (var group in breedGroups)
-            {
-                Console.WriteLine($"   {group.Breed}: {group.Count} собак");
-            }
-            Console.WriteLine();
+                // Create CRUD services
+                var dogService = new CrudServiceAsyncRepository<DogModel>(dogAdapter);
+                var catService = new CrudServiceAsyncRepository<CatModel>(catAdapter);
+                var customerService = new CrudServiceAsyncRepository<CustomerModel>(customerAdapter);
 
-            // Збереження у файл
-            Console.WriteLine("Збереження колекції у файл...");
-            var saved = await dogService.SaveAsync();
-            Console.WriteLine(saved ? "Дані успішно збережено у файл dogs_async.json\n" : "❌ Помилка збереження\n");
-
-            // Пагінація
-            Console.WriteLine("Приклад пагінації (перші 5 собак на сторінці 0):");
-            var page0 = await dogService.ReadAllAsync(0, 5);
-            foreach (var dog in page0)
-            {
-                Console.WriteLine($"   {dog.Name} ({dog.Breed}), {dog.Age} років");
-            }
-            Console.WriteLine();
-
-            // Демонстрація IEnumerable
-            Console.WriteLine("Використання IEnumerable (перші 3 собаки):");
-            int count = 0;
-            foreach (var dog in dogService)
-            {
-                if (count++ >= 3) break;
-                Console.WriteLine($"   {dog.Name} - {dog.Breed}");
-            }
-            Console.WriteLine();
-
-            // Демонстрація примітивів синхронізації
-            await DemonstrateSynchronizationPrimitivesAsync();
-
-            Console.WriteLine("Програма завершена!");
-        }
-
-        // Приклади використання примітивів синхронізації
-        static async Task DemonstrateSynchronizationPrimitivesAsync()
-        {
-            Console.WriteLine("=== Демонстрація примітивів синхронізації ===\n");
-
-            // 1. Lock - захист критичної секції
-            DemonstrateLock();
-
-            // 2. SemaphoreSlim - обмеження кількості одночасних операцій
-            await DemonstrateSemaphoreAsync();
-
-            // 3. AutoResetEvent - сигналізація між потоками
-            DemonstrateAutoResetEvent();
-
-            Console.WriteLine();
-        }
-
-        static void DemonstrateLock()
-        {
-            Console.WriteLine(" 1. Lock - захист спільного ресурсу:");
-            var counter = 0;
-            var lockObject = new object();
-
-            Parallel.For(0, 100, i =>
-            {
-                lock (lockObject)
+                // Clear existing data for demo
+                Console.WriteLine("Очищення попередніх даних...");
+                var existingDogs = await dogService.ReadAllAsync();
+                foreach (var dog in existingDogs)
                 {
-                    counter++;
+                    await dogService.RemoveAsync(dog);
                 }
-            });
-
-            Console.WriteLine($"   Лічильник після 100 паралельних інкрементів: {counter}");
-            Console.WriteLine($"   (Без lock було б менше 100 через race condition)\n");
-        }
-
-        static async Task DemonstrateSemaphoreAsync()
-        {
-            Console.WriteLine(" 2. SemaphoreSlim - обмеження одночасного доступу:");
-            var semaphore = new SemaphoreSlim(3, 3); // Максимум 3 одночасних операції
-            var tasks = new Task[10];
-
-            for (int i = 0; i < 10; i++)
-            {
-                var taskNumber = i;
-                tasks[i] = Task.Run(async () =>
+                var existingCats = await catService.ReadAllAsync();
+                foreach (var cat in existingCats)
                 {
-                    await semaphore.WaitAsync();
-                    try
+                    await catService.RemoveAsync(cat);
+                }
+                var existingCustomers = await customerService.ReadAllAsync();
+                foreach (var customer in existingCustomers)
+                {
+                    await customerService.RemoveAsync(customer);
+                }
+                Console.WriteLine(" Дані очищено\n");
+
+                // ===== CRUD Operations Demo =====
+                Console.WriteLine("=== Демонстрація CRUD операцій ===\n");
+
+                // CREATE: Add dogs
+                Console.WriteLine("1. CREATE - Додавання собак:");
+                var dog1 = new DogModel("Бобік", 3, "Лабрадор", true);
+                var dog2 = new DogModel("Рекс", 5, "Овчарка", true);
+                var dog3 = new DogModel("Макс", 2, "Хаскі", false);
+                
+                await dogService.CreateAsync(dog1);
+                await dogService.CreateAsync(dog2);
+                await dogService.CreateAsync(dog3);
+                Console.WriteLine($"    Додано: {dog1.Name} ({dog1.Breed})");
+                Console.WriteLine($"    Додано: {dog2.Name} ({dog2.Breed})");
+                Console.WriteLine($"    Додано: {dog3.Name} ({dog3.Breed})\n");
+
+                // CREATE: Add cats
+                Console.WriteLine("   Додавання котів:");
+                var cat1 = new CatModel("Мурка", 4, "Сірий", true);
+                var cat2 = new CatModel("Сніжок", 2, "Білий", true);
+                
+                await catService.CreateAsync(cat1);
+                await catService.CreateAsync(cat2);
+                Console.WriteLine($"    Додано: {cat1.Name} ({cat1.Color})");
+                Console.WriteLine($"    Додано: {cat2.Name} ({cat2.Color})\n");
+
+                // READ: Get all dogs
+                Console.WriteLine("2. READ - Читання всіх собак:");
+                var allDogs = await dogService.ReadAllAsync();
+                foreach (var dog in allDogs)
+                {
+                    Console.WriteLine($"   - {dog.Name}, {dog.Age} років, порода: {dog.Breed}, тренований: {(dog.IsTrained ? "Так" : "Ні")}");
+                }
+                Console.WriteLine();
+
+                // READ: Get dog by ID
+                Console.WriteLine("3. READ BY ID - Читання собаки за ID:");
+                var foundDog = await dogService.ReadAsync(dog1.Id);
+                if (foundDog != null)
+                {
+                    Console.WriteLine($"   Знайдено: {foundDog.Name} (ID: {foundDog.Id})\n");
+                }
+
+                // UPDATE: Update dog
+                Console.WriteLine("4. UPDATE - Оновлення даних собаки:");
+                dog1.Age = 4;
+                dog1.IsTrained = true;
+                await dogService.UpdateAsync(dog1);
+                var updatedDog = await dogService.ReadAsync(dog1.Id);
+                Console.WriteLine($"    Оновлено: {updatedDog.Name}, новий вік: {updatedDog.Age}\n");
+
+                // ===== Relationships Demo =====
+                Console.WriteLine("=== Демонстрація зв'язків між сутностями ===\n");
+
+                // Create customers
+                Console.WriteLine("5. Створення клієнтів:");
+                var customer1 = new CustomerModel("Іван Петренко", 30);
+                var customer2 = new CustomerModel("Марія Коваленко", 25);
+                
+                await customerService.CreateAsync(customer1);
+                await customerService.CreateAsync(customer2);
+                Console.WriteLine($"    Додано клієнта: {customer1.Name}");
+                Console.WriteLine($"    Додано клієнта: {customer2.Name}\n");
+
+                // ONE-TO-ONE: Assign owner to pet
+                Console.WriteLine("6. ONE-TO-ONE зв'язок (Власник → Тварина):");
+                dog1.OwnerId = customer1.Id;
+                await dogService.UpdateAsync(dog1);
+                cat1.OwnerId = customer1.Id;
+                await catService.UpdateAsync(cat1);
+                dog2.OwnerId = customer2.Id;
+                await dogService.UpdateAsync(dog2);
+                Console.WriteLine($"    {dog1.Name} тепер належить {customer1.Name}");
+                Console.WriteLine($"    {cat1.Name} тепер належить {customer1.Name}");
+                Console.WriteLine($"    {dog2.Name} тепер належить {customer2.Name}\n");
+
+                // ONE-TO-MANY: Customer has multiple pets
+                Console.WriteLine("7. ONE-TO-MANY зв'язок (Клієнт → Багато тварин):");
+                customer1.PetIds.Add(dog1.Id);
+                customer1.PetIds.Add(cat1.Id);
+                await customerService.UpdateAsync(customer1);
+                
+                customer2.PetIds.Add(dog2.Id);
+                await customerService.UpdateAsync(customer2);
+                
+                Console.WriteLine($"    {customer1.Name} має {customer1.PetIds.Count} тварин");
+                Console.WriteLine($"    {customer2.Name} має {customer2.PetIds.Count} тварин\n");
+
+                // Query relationships
+                Console.WriteLine("8. Запит зв'язків - Тварини клієнта:");
+                var customerWithPets = await customerService.ReadAsync(customer1.Id);
+                Console.WriteLine($"   Клієнт: {customerWithPets.Name}");
+                Console.WriteLine($"   Тварини клієнта:");
+                
+                foreach (var petId in customerWithPets.PetIds)
+                {
+                    var dog = await dogService.ReadAsync(petId);
+                    if (dog != null)
                     {
-                        Console.WriteLine($"   Задача {taskNumber} виконується (макс 3 одночасно)");
-                        await Task.Delay(100);
+                        Console.WriteLine($"      - Собака: {dog.Name} ({dog.Breed})");
                     }
-                    finally
+                    else
                     {
-                        semaphore.Release();
+                        var cat = await catService.ReadAsync(petId);
+                        if (cat != null)
+                        {
+                            Console.WriteLine($"      - Кіт: {cat.Name} ({cat.Color})");
+                        }
                     }
-                });
+                }
+                Console.WriteLine();
+
+                // DELETE: Remove a pet
+                Console.WriteLine("9. DELETE - Видалення тварини:");
+                await dogService.RemoveAsync(dog3);
+                Console.WriteLine($"    Видалено: {dog3.Name}\n");
+
+                // Pagination demo
+                Console.WriteLine("10. Пагінація (перша сторінка, 2 елементи):");
+                var page0 = await dogService.ReadAllAsync(0, 2);
+                foreach (var dog in page0)
+                {
+                    Console.WriteLine($"   - {dog.Name} ({dog.Breed})");
+                }
+                Console.WriteLine();
+
+                // Statistics with LINQ
+                Console.WriteLine("=== Статистика (LINQ) ===");
+                var allDogsForStats = (await dogService.ReadAllAsync()).ToList();
+                if (allDogsForStats.Any())
+                {
+                    Console.WriteLine($"Загальна кількість собак: {allDogsForStats.Count}");
+                    Console.WriteLine($"Середній вік: {allDogsForStats.Average(d => d.Age):F2} років");
+                    Console.WriteLine($"Тренованих собак: {allDogsForStats.Count(d => d.IsTrained)}");
+                    
+                    var breedGroups = allDogsForStats.GroupBy(d => d.Breed)
+                        .Select(g => new { Breed = g.Key, Count = g.Count() });
+                    Console.WriteLine("Собаки по породах:");
+                    foreach (var group in breedGroups)
+                    {
+                        Console.WriteLine($"   {group.Breed}: {group.Count}");
+                    }
+                }
+                Console.WriteLine();
+
+                Console.WriteLine(" Програма успішно завершена!");
             }
-
-            await Task.WhenAll(tasks);
-            Console.WriteLine($"   Всі 10 задач виконано (по 3 одночасно)\n");
-        }
-
-        static void DemonstrateAutoResetEvent()
-        {
-            Console.WriteLine(" 3. AutoResetEvent - сигналізація між потоками:");
-            var autoEvent = new AutoResetEvent(false);
-            var workerFinished = false;
-
-            // Робочий потік
-            var workerThread = new Thread(() =>
+            catch (Exception ex)
             {
-                Console.WriteLine("   Робочий потік: Виконую задачу...");
-                Thread.Sleep(500);
-                Console.WriteLine("   Робочий потік: Задачу виконано, сигнал надіслано!");
-                workerFinished = true;
-                autoEvent.Set(); // Надсилаємо сигнал
-            });
-
-            workerThread.Start();
-
-            Console.WriteLine("   Головний потік: Очікую на завершення робочого потоку...");
-            autoEvent.WaitOne(); // Чекаємо на сигнал
-            Console.WriteLine($"   Головний потік: Отримано сигнал! Статус: {(workerFinished ? "Готово" : "Не готово")}\n");
+                Console.WriteLine($"\nПомилка: {ex.Message}");
+                Console.WriteLine("\nПереконайтеся, що MongoDB запущено на localhost:27017");
+                Console.WriteLine("Для запуску MongoDB використайте: mongod");
+            }
         }
     }
 }
