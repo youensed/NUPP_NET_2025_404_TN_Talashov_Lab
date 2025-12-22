@@ -29,7 +29,7 @@ namespace PetStore.Common.Services
             }
         }
 
-        public async Task<T> ReadAsync(Guid id)
+        public async Task<T?> ReadAsync(Guid id)
         {
             return await _repository.GetByIdAsync(id);
         }

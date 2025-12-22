@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetStore.REST.Models;
 using PetStore.Common.Services;
@@ -20,6 +21,7 @@ namespace PetStore.REST.Controllers
 
         // GET: api/customers
         [HttpGet]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<CustomerDto>>> GetAllCustomers([FromQuery] int? page, [FromQuery] int? amount)
         {
             try
@@ -54,6 +56,7 @@ namespace PetStore.REST.Controllers
 
         // GET: api/customers/{id}
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<ActionResult<CustomerDto>> GetCustomerById(Guid id)
         {
             try
@@ -119,6 +122,7 @@ namespace PetStore.REST.Controllers
 
         // PUT: api/customers/{id}
         [HttpPut("{id}")]
+        [Authorize]
         public async Task<IActionResult> UpdateCustomer(Guid id, [FromBody] CustomerUpdateDto customerUpdateDto)
         {
             try
@@ -156,6 +160,7 @@ namespace PetStore.REST.Controllers
 
         // DELETE: api/customers/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteCustomer(Guid id)
         {
             try

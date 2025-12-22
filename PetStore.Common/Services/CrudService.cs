@@ -12,10 +12,10 @@ namespace PetStore.Common.Services
 
         public void Create(T element) => _storage.Add(element);
 
-        public T Read(Guid id)
+        public T? Read(Guid id)
         {
             var prop = typeof(T).GetProperty("Id");
-            return _storage.FirstOrDefault(x => (Guid)prop.GetValue(x)! == id)!;
+            return _storage.FirstOrDefault(x => (Guid)prop.GetValue(x)! == id);
         }
 
         public IEnumerable<T> ReadAll() => _storage;

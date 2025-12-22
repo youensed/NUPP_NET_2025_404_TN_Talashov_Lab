@@ -1,28 +1,42 @@
-using MongoDB.Driver;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using PetStore.Infrastructure.Models;
 
 namespace PetStore.Infrastructure
 {
-    public class PetStoreContext
+    public class PetStoreContext : IdentityDbContext<User>
     {
-        private readonly IMongoDatabase _database;
-        private const string DatabaseName = "PetStoreDB";
-
-        public PetStoreContext(string connectionString)
+        public PetStoreContext(DbContextOptions<PetStoreContext> options)
+            : base(options)
         {
-            var client = new MongoClient(connectionString);
-            _database = client.GetDatabase(DatabaseName);
         }
 
-        // Collections
-        public IMongoCollection<DogModel> Dogs => _database.GetCollection<DogModel>("Dogs");
-        public IMongoCollection<CatModel> Cats => _database.GetCollection<CatModel>("Cats");
-        public IMongoCollection<CustomerModel> Customers => _database.GetCollection<CustomerModel>("Customers");
+        // DbSets
+        public DbSet<DogModel> Dogs { get; set; } = null!;
+        public DbSet<CatModel> Cats { get; set; } = null!;
+        public DbSet<CustomerModel> Customers { get; set; } = null!;
 
-        // Generic collection getter
-        public IMongoCollection<T> GetCollection<T>(string collectionName)
+        protected override void OnModelCreating(ModelBuilder builder)
         {
-            return _database.GetCollection<T>(collectionName);
+            base.OnModelCreating(builder);
+
+            // Configure table names for Identity tables (optional, cleaner names)
+            builder.Entity<User>().ToTable("Users");
+
+            // Configure Pet inheritance - Table Per Hierarchy (TPH) strategy
+            builder.Entity<PetModel>()
+                .HasDiscriminator<string>("PetType")
+                .HasValue<DogModel>("Dog")
+                .HasValue<CatModel>("Cat");
+
+            // Configure CustomerModel - store PetIds as JSON
+            builder.Entity<CustomerModel>()
+                .Property(c => c.PetIds)
+                .HasConversion(
+                    v => string.Join(',', v),
+                    v => v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                          .Select(Guid.Parse).ToList()
+                );
         }
     }
 }

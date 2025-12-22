@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetStore.REST.Models;
 using PetStore.Common.Services;
@@ -86,6 +87,7 @@ namespace PetStore.REST.Controllers
 
         // POST: api/dogs
         [HttpPost]
+        [Authorize(Roles = "Employee,Admin")]
         public async Task<ActionResult<DogDto>> CreateDog([FromBody] DogCreateDto dogCreateDto)
         {
             try
@@ -124,6 +126,7 @@ namespace PetStore.REST.Controllers
 
         // PUT: api/dogs/{id}
         [HttpPut("{id}")]
+        [Authorize(Roles = "Employee,Admin")]
         public async Task<IActionResult> UpdateDog(Guid id, [FromBody] DogUpdateDto dogUpdateDto)
         {
             try
@@ -163,6 +166,7 @@ namespace PetStore.REST.Controllers
 
         // DELETE: api/dogs/{id}
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteDog(Guid id)
         {
             try

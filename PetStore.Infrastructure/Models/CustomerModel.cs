@@ -1,22 +1,19 @@
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
+using System.ComponentModel.DataAnnotations;
 
 namespace PetStore.Infrastructure.Models
 {
     public class CustomerModel
     {
-        [BsonId]
-        [BsonRepresentation(BsonType.String)]
+        [Key]
         public Guid Id { get; set; }
 
-        [BsonElement("name")]
+        [Required]
+        [MaxLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [BsonElement("age")]
         public int Age { get; set; }
 
         // One-to-Many relationship: Each Customer can have multiple Pets
-        [BsonElement("petIds")]
         public List<Guid> PetIds { get; set; } = new List<Guid>();
 
         public CustomerModel()

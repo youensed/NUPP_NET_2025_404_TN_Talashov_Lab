@@ -1,14 +1,13 @@
-using MongoDB.Bson.Serialization.Attributes;
+using System.ComponentModel.DataAnnotations;
 
 namespace PetStore.Infrastructure.Models
 {
-    [BsonDiscriminator("Dog")]
     public class DogModel : PetModel
     {
-        [BsonElement("breed")]
+        [Required]
+        [MaxLength(100)]
         public string Breed { get; set; } = string.Empty;
 
-        [BsonElement("isTrained")]
         public bool IsTrained { get; set; }
 
         public DogModel() : base()

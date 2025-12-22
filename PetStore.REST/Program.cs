@@ -1,7 +1,13 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using PetStore.Infrastructure;
 using PetStore.Infrastructure.Models;
 using PetStore.Infrastructure.Repository;
 using PetStore.Common.Services;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,27 +16,90 @@ builder.Services.AddControllers();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
-// Get MongoDB connection string from configuration
-var mongoConnectionString = builder.Configuration.GetConnectionString("MongoDB") 
-    ?? throw new InvalidOperationException("MongoDB connection string not found");
+// Configure Swagger to support JWT authentication
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter 'Bearer' followed by a space and your JWT token"
+    });
 
-// Register PetStoreContext as singleton
-builder.Services.AddSingleton<PetStoreContext>(sp => new PetStoreContext(mongoConnectionString));
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+
+// Get connection string from configuration
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? throw new InvalidOperationException("Connection string not found");
+
+// Register DbContext with SQL Server
+builder.Services.AddDbContext<PetStoreContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// Configure Identity
+builder.Services.AddIdentity<User, IdentityRole>(options =>
+{
+    // Password settings
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 6;
+
+    // User settings
+    options.User.RequireUniqueEmail = true;
+})
+.AddEntityFrameworkStores<PetStoreContext>()
+.AddDefaultTokenProviders();
+
+// Configure JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"] 
+    ?? throw new InvalidOperationException("JWT Key not found");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+});
+
+builder.Services.AddAuthorization();
 
 // Register repositories
-builder.Services.AddScoped<IRepository<DogModel>>(sp =>
-{
-    var context = sp.GetRequiredService<PetStoreContext>();
-    return new MongoRepository<DogModel>(context.Dogs);
-});
-
-builder.Services.AddScoped<IRepository<CustomerModel>>(sp =>
-{
-    var context = sp.GetRequiredService<PetStoreContext>();
-    return new MongoRepository<CustomerModel>(context.Customers);
-});
+builder.Services.AddScoped<IRepository<DogModel>, EfRepository<DogModel>>();
+builder.Services.AddScoped<IRepository<CustomerModel>, EfRepository<CustomerModel>>();
 
 // Register repository adapters
 builder.Services.AddScoped<IRepositoryAdapter<DogModel>>(sp =>
@@ -71,6 +140,88 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Seed database with roles and test users
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<PetStoreContext>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        
+        // Ensure database is created
+        context.Database.EnsureCreated();
+        
+        // Seed roles
+        string[] roles = { "Customer", "Employee", "Admin" };
+        foreach (var role in roles)
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                await roleManager.CreateAsync(new IdentityRole(role));
+            }
+        }
+        
+        // Seed test users
+        if (await userManager.FindByEmailAsync("admin@petstore.com") == null)
+        {
+            var adminUser = new User
+            {
+                UserName = "admin@petstore.com",
+                Email = "admin@petstore.com",
+                FirstName = "Admin",
+                LastName = "User",
+                EmailConfirmed = true
+            };
+            var result = await userManager.CreateAsync(adminUser, "Admin123!");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+            }
+        }
+        
+        if (await userManager.FindByEmailAsync("employee@petstore.com") == null)
+        {
+            var employeeUser = new User
+            {
+                UserName = "employee@petstore.com",
+                Email = "employee@petstore.com",
+                FirstName = "Employee",
+                LastName = "User",
+                EmailConfirmed = true
+            };
+            var result = await userManager.CreateAsync(employeeUser, "Employee123!");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(employeeUser, "Employee");
+            }
+        }
+        
+        if (await userManager.FindByEmailAsync("customer@petstore.com") == null)
+        {
+            var customerUser = new User
+            {
+                UserName = "customer@petstore.com",
+                Email = "customer@petstore.com",
+                FirstName = "Customer",
+                LastName = "User",
+                EmailConfirmed = true
+            };
+            var result = await userManager.CreateAsync(customerUser, "Customer123!");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(customerUser, "Customer");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
+
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -82,6 +233,7 @@ app.UseHttpsRedirection();
 
 app.UseCors();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

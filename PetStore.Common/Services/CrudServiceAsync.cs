@@ -30,7 +30,7 @@ namespace PetStore.Common.Services
             return _storage.TryAdd(id, element);
         }
 
-        public async Task<T> ReadAsync(Guid id)
+        public async Task<T?> ReadAsync(Guid id)
         {
             _storage.TryGetValue(id, out var element);
             return await Task.FromResult(element);
