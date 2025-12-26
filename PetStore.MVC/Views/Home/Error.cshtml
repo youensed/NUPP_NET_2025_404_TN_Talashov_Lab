@@ -1,0 +1,26 @@
+@model PetStore.MVC.Models.ErrorViewModel
+
+@{
+    ViewData["Title"] = "Помилка";
+}
+
+<div class="container mt-5">
+    <div class="alert alert-danger" role="alert">
+        <h1 class="alert-heading">Помилка</h1>
+        <p>Під час обробки вашого запиту сталася помилка.</p>
+
+        @if (Model.ShowRequestId)
+        {
+            <p>
+                <strong>Request ID:</strong> <code>@Model.RequestId</code>
+            </p>
+        }
+    </div>
+
+    <div class="mt-4">
+        <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
+            <i class="bi bi-house"></i> Повернутися на головну
+        </a>
+    </div>
+</div>
+
