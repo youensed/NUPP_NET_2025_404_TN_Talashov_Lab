@@ -1,0 +1,52 @@
+@model PetStore.MVC.Models.CatViewModel
+
+@{
+    ViewData["Title"] = "Видалити кота";
+}
+
+<div class="container mt-4">
+    <h1>@ViewData["Title"]</h1>
+    <hr />
+
+    <div class="alert alert-warning">
+        <h4>Ви впевнені, що хочете видалити цього кота?</h4>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Ім'я</dt>
+                <dd class="col-sm-9">@Model.Name</dd>
+
+                <dt class="col-sm-3">Вік</dt>
+                <dd class="col-sm-9">@Model.Age років</dd>
+
+                <dt class="col-sm-3">Колір</dt>
+                <dd class="col-sm-9">@Model.Color</dd>
+
+                <dt class="col-sm-3">Домашній</dt>
+                <dd class="col-sm-9">
+                    @if (Model.IsIndoor)
+                    {
+                        <span class="badge bg-success">Так</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Ні</span>
+                    }
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    <form asp-action="Delete" method="post" class="mt-3">
+        <input type="hidden" asp-for="Id" />
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Видалити
+        </button>
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-x-circle"></i> Скасувати
+        </a>
+    </form>
+</div>
+
