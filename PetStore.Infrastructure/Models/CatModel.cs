@@ -1,14 +1,8 @@
-using MongoDB.Bson.Serialization.Attributes;
-
 namespace PetStore.Infrastructure.Models
 {
-    [BsonDiscriminator("Cat")]
     public class CatModel : PetModel
     {
-        [BsonElement("color")]
         public string Color { get; set; } = string.Empty;
-
-        [BsonElement("isIndoor")]
         public bool IsIndoor { get; set; }
 
         public CatModel() : base()

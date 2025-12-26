@@ -2,7 +2,7 @@ using PetStore.Common.Services;
 
 namespace PetStore.Infrastructure.Repository
 {
-    // Adapter to make MongoRepository compatible with CrudServiceAsync
+    // Adapter to make EfCoreRepository compatible with CrudServiceAsync
     public class RepositoryAdapter<T> : IRepositoryAdapter<T> where T : class
     {
         private readonly IRepository<T> _repository;

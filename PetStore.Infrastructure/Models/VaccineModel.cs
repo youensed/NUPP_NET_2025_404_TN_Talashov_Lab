@@ -1,22 +1,22 @@
 namespace PetStore.Infrastructure.Models
 {
-    public class CustomerModel
+    public class VaccineModel
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public int Age { get; set; }
+        public string Description { get; set; } = string.Empty;
 
-        // One-to-Many relationship: Each Customer can have multiple Pets
+        // Many-to-Many relationship: Each Vaccine can be given to multiple Pets
         public virtual ICollection<PetModel> Pets { get; set; } = new List<PetModel>();
 
-        public CustomerModel()
+        public VaccineModel()
         {
         }
 
-        public CustomerModel(string name, int age)
+        public VaccineModel(string name, string description)
         {
             Name = name;
-            Age = age;
+            Description = description;
         }
     }
 }

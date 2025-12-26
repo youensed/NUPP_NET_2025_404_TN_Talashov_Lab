@@ -1,29 +1,18 @@
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
-
 namespace PetStore.Infrastructure.Models
 {
-    [BsonDiscriminator(RootClass = true)]
-    [BsonKnownTypes(typeof(DogModel), typeof(CatModel))]
     public abstract class PetModel
     {
-        [BsonId]
-        [BsonRepresentation(BsonType.String)]
         public Guid Id { get; set; }
-
-        [BsonElement("name")]
         public string Name { get; set; } = string.Empty;
-
-        [BsonElement("age")]
         public int Age { get; set; }
-
-        [BsonElement("petType")]
         public string PetType { get; set; } = string.Empty;
 
-        // One-to-One relationship: Each Pet has one Owner
-        [BsonElement("ownerId")]
-        [BsonRepresentation(BsonType.String)]
-        public Guid? OwnerId { get; set; }
+        // One-to-Many relationship: Each Pet belongs to one Customer
+        public int? OwnerId { get; set; }
+        public virtual CustomerModel? Owner { get; set; }
+
+        // Many-to-Many relationship: Each Pet can have multiple Vaccines
+        public virtual ICollection<VaccineModel> Vaccines { get; set; } = new List<VaccineModel>();
 
         protected PetModel()
         {
