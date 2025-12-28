@@ -2,16 +2,17 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution file
-COPY *.sln .
-
-# Copy csproj files and restore dependencies
-COPY PetStore.REST/*.csproj ./PetStore.REST/
+# Copy csproj files and restore dependencies (only projects needed for REST API)
 COPY PetStore.Common/*.csproj ./PetStore.Common/
 COPY PetStore.Infrastructure/*.csproj ./PetStore.Infrastructure/
+COPY PetStore.REST/*.csproj ./PetStore.REST/
+
+# Restore dependencies for REST project (will restore all referenced projects)
+WORKDIR /src/PetStore.REST
 RUN dotnet restore
 
 # Copy everything else and build
+WORKDIR /src
 COPY . .
 WORKDIR /src/PetStore.REST
 RUN dotnet build -c Release -o /app/build
