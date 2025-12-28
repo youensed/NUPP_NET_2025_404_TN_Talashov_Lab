@@ -46,13 +46,14 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Get connection string from configuration
+// Get connection string from configuration (supports environment variables)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string not found");
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string not found. Set ConnectionStrings__DefaultConnection environment variable.");
 
-// Register DbContext with SQL Server
+// Register DbContext with PostgreSQL
 builder.Services.AddDbContext<PetStoreContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 // Configure Identity
 builder.Services.AddIdentity<User, IdentityRole>(options =>
@@ -70,11 +71,16 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 .AddEntityFrameworkStores<PetStoreContext>()
 .AddDefaultTokenProviders();
 
-// Configure JWT Authentication
+// Configure JWT Authentication (supports environment variables)
 var jwtKey = builder.Configuration["Jwt:Key"] 
-    ?? throw new InvalidOperationException("JWT Key not found");
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
+    ?? Environment.GetEnvironmentVariable("Jwt__Key")
+    ?? throw new InvalidOperationException("JWT Key not found. Set Jwt__Key environment variable.");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+    ?? Environment.GetEnvironmentVariable("Jwt__Issuer")
+    ?? "PetStoreAPI";
+var jwtAudience = builder.Configuration["Jwt:Audience"]
+    ?? Environment.GetEnvironmentVariable("Jwt__Audience")
+    ?? "PetStoreClient";
 
 builder.Services.AddAuthentication(options =>
 {
@@ -163,55 +169,62 @@ using (var scope = app.Services.CreateScope())
             }
         }
         
-        // Seed test users
-        if (await userManager.FindByEmailAsync("admin@petstore.com") == null)
+        // Seed test users (only in Development environment)
+        if (builder.Environment.IsDevelopment())
         {
-            var adminUser = new User
+            var adminPassword = Environment.GetEnvironmentVariable("ADMIN_PASSWORD") ?? "Admin123!";
+            var employeePassword = Environment.GetEnvironmentVariable("EMPLOYEE_PASSWORD") ?? "Employee123!";
+            var customerPassword = Environment.GetEnvironmentVariable("CUSTOMER_PASSWORD") ?? "Customer123!";
+
+            if (await userManager.FindByEmailAsync("admin@petstore.com") == null)
             {
-                UserName = "admin@petstore.com",
-                Email = "admin@petstore.com",
-                FirstName = "Admin",
-                LastName = "User",
-                EmailConfirmed = true
-            };
-            var result = await userManager.CreateAsync(adminUser, "Admin123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
+                var adminUser = new User
+                {
+                    UserName = "admin@petstore.com",
+                    Email = "admin@petstore.com",
+                    FirstName = "Admin",
+                    LastName = "User",
+                    EmailConfirmed = true
+                };
+                var result = await userManager.CreateAsync(adminUser, adminPassword);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(adminUser, "Admin");
+                }
             }
-        }
-        
-        if (await userManager.FindByEmailAsync("employee@petstore.com") == null)
-        {
-            var employeeUser = new User
+            
+            if (await userManager.FindByEmailAsync("employee@petstore.com") == null)
             {
-                UserName = "employee@petstore.com",
-                Email = "employee@petstore.com",
-                FirstName = "Employee",
-                LastName = "User",
-                EmailConfirmed = true
-            };
-            var result = await userManager.CreateAsync(employeeUser, "Employee123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(employeeUser, "Employee");
+                var employeeUser = new User
+                {
+                    UserName = "employee@petstore.com",
+                    Email = "employee@petstore.com",
+                    FirstName = "Employee",
+                    LastName = "User",
+                    EmailConfirmed = true
+                };
+                var result = await userManager.CreateAsync(employeeUser, employeePassword);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(employeeUser, "Employee");
+                }
             }
-        }
-        
-        if (await userManager.FindByEmailAsync("customer@petstore.com") == null)
-        {
-            var customerUser = new User
+            
+            if (await userManager.FindByEmailAsync("customer@petstore.com") == null)
             {
-                UserName = "customer@petstore.com",
-                Email = "customer@petstore.com",
-                FirstName = "Customer",
-                LastName = "User",
-                EmailConfirmed = true
-            };
-            var result = await userManager.CreateAsync(customerUser, "Customer123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(customerUser, "Customer");
+                var customerUser = new User
+                {
+                    UserName = "customer@petstore.com",
+                    Email = "customer@petstore.com",
+                    FirstName = "Customer",
+                    LastName = "User",
+                    EmailConfirmed = true
+                };
+                var result = await userManager.CreateAsync(customerUser, customerPassword);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(customerUser, "Customer");
+                }
             }
         }
     }
@@ -238,5 +251,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+// Get port from environment variable (Render sets PORT)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Run($"http://0.0.0.0:{port}");
 
